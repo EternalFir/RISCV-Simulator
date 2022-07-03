@@ -17,7 +17,6 @@ struct LSB_Node {
     op_type_list op_type;
     unsigned int reorder_num;
     unsigned int count;
-//    bool jump_predicted;
 
     LSB_Node() {
         vj = vk = 0;
@@ -25,9 +24,8 @@ struct LSB_Node {
         imm = 0;
         used = commit = false;
         op_code = 0;
-        reorder_num  = qj = qk = (unsigned int) -1;
+        reorder_num = qj = qk = (unsigned int) -1;
         count = 0;
-//        jump_predicted= false;
     }
 
     ~LSB_Node() {}
@@ -40,7 +38,6 @@ struct LSB_Node {
         op_code = 0;
         reorder_num = qj = qk = (unsigned int) -1;
         count = 0;
-//        jump_predicted=false;
     }
 
     bool Ready() {

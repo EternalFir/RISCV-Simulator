@@ -27,13 +27,13 @@ private:
     InstructionQueue iq;
     unsigned int iq_pointer;
     ReorderBuffer rob_up, rob_down;
-    ROB_Node rob_next_node, commit_node;
+    ROB_Node rob_issue_node, commit_node;
     CommonDataBuss rob_lsb_up, rob_lsb_down;
     ReservationStation rs_up, rs_down;
-    RS_Node rs_next_node;
+    RS_Node rs_issue_node;
     Commit rename_info;
     LoadStoreBuffer lsb_up, lsb_down;
-    LSB_Node lsb_next_node;
+    LSB_Node lsb_issue_node;
     CommonDataBuss cdb_lsb_up, cdb_lsb_down, cdb_execute;
     RS_Node execute_node;
     // 可供使用的不同预测器
@@ -91,7 +91,7 @@ private:
         rob_up = rob_down;
         if (jump_result == -1) {
             rob_up.Clear();
-            rob_next_node.Clear();
+            rob_issue_node.Clear();
             return;
         } else if (jump_result == 1) {
             rob_up.PopHead();
@@ -122,18 +122,18 @@ private:
             if (temp.op_code == 35 || temp.ready)
                 commit_node = temp;
         }
-        if (rob_next_node.op_code != 0) // 可添加
-            rob_up.Push(rob_next_node);
-        rob_next_node.Clear();
+        if (rob_issue_node.op_code != 0) // 可添加
+            rob_up.Push(rob_issue_node);
+        rob_issue_node.Clear();
     }
 
     void RunLSB() {
         cdb_lsb_up.Clear();
         if (jump_result == -1) {
             lsb_up.Clear();
-            lsb_next_node.Clear();
+            lsb_issue_node.Clear();
             unsigned pos = lsb_down.Head();
-            for (int i = 0; i < k_size; i++) { //逐条检查commit情况
+            for (int i = 0; i < k_size; i++) { //逐条检查commit情况，已经commit的不清空
                 LSB_Node temp = lsb_down.Get((pos + i) % k_size);
                 if (!temp.op_code)
                     break;
@@ -199,16 +199,16 @@ private:
                 lsb_up.SetFront(temp);
             }
         }
-        if (lsb_next_node.op_code != 0)
-            lsb_up.Push(lsb_next_node);
-        lsb_next_node.Clear();
+        if (lsb_issue_node.op_code != 0)
+            lsb_up.Push(lsb_issue_node);
+        lsb_issue_node.Clear();
     }
 
     void RunRS() {
         rs_up = rs_down;
         if (jump_result == -1) {
             rs_up.Clear();
-            rs_next_node.Clear();
+            rs_issue_node.Clear();
             return;
         }
         if (cdb_execute.reorder_num != -1) {
@@ -226,14 +226,14 @@ private:
                     rs_up.Set(check, i);
                 }
             }
-            if (rs_next_node.op_code != 0) {// next也要检查
-                if (rs_next_node.qj == cdb_execute.reorder_num) {
-                    rs_next_node.qj = -1;
-                    rs_next_node.vj = cdb_execute.value;
+            if (rs_issue_node.op_code != 0) {// 加入的也要检查
+                if (rs_issue_node.qj == cdb_execute.reorder_num) {
+                    rs_issue_node.qj = -1;
+                    rs_issue_node.vj = cdb_execute.value;
                 }
-                if (rs_next_node.qk == cdb_execute.reorder_num) {
-                    rs_next_node.qk = -1;
-                    rs_next_node.vk = cdb_execute.value;
+                if (rs_issue_node.qk == cdb_execute.reorder_num) {
+                    rs_issue_node.qk = -1;
+                    rs_issue_node.vk = cdb_execute.value;
                 }
             }
         }
@@ -252,14 +252,14 @@ private:
                     rs_up.Set(check, i);
                 }
             }
-            if (rs_next_node.op_code != 0) {
-                if (rs_next_node.qj == cdb_lsb_down.reorder_num) {
-                    rs_next_node.qj = -1;
-                    rs_next_node.vj = cdb_lsb_down.value;
+            if (rs_issue_node.op_code != 0) {
+                if (rs_issue_node.qj == cdb_lsb_down.reorder_num) {
+                    rs_issue_node.qj = -1;
+                    rs_issue_node.vj = cdb_lsb_down.value;
                 }
-                if (rs_next_node.qk == cdb_lsb_down.reorder_num) {
-                    rs_next_node.qk = -1;
-                    rs_next_node.vk = cdb_lsb_down.value;
+                if (rs_issue_node.qk == cdb_lsb_down.reorder_num) {
+                    rs_issue_node.qk = -1;
+                    rs_issue_node.vk = cdb_lsb_down.value;
                 }
             }
         }
@@ -274,10 +274,10 @@ private:
             }
         }
         // 添加新指令
-        if (rs_next_node.op_code != 0) {
+        if (rs_issue_node.op_code != 0) {
             unsigned int pos = rs_up.Spare();
-            rs_up.Set(rs_next_node, pos);
-            rs_next_node.Clear();
+            rs_up.Set(rs_issue_node, pos);
+            rs_issue_node.Clear();
         }
     }
 
@@ -425,27 +425,27 @@ private:
                 if (lsb_down.Full())
                     return;
                 unsigned int rob_pos = rob_down.Spare();
-                rob_next_node.op_code = instruction.op_code_;
-                rob_next_node.op_type = instruction.op_name_;
-                rob_next_node.rd = instruction.rd_;
-                rob_next_node.imm = instruction.imm_num_;
-                rob_next_node.pc = iq.Front().pc_position;
-                rob_next_node.ready = false;
-                rob_next_node.jump_predicted = instruction.jump_predicted;
-                lsb_next_node.op_code = instruction.op_code_;
-                lsb_next_node.op_type = instruction.op_name_;
-                lsb_next_node.imm = instruction.imm_num_;
-                lsb_next_node.used = true;
+                rob_issue_node.op_code = instruction.op_code_;
+                rob_issue_node.op_type = instruction.op_name_;
+                rob_issue_node.rd = instruction.rd_;
+                rob_issue_node.imm = instruction.imm_num_;
+                rob_issue_node.pc = iq.Front().pc_position;
+                rob_issue_node.ready = false;
+                rob_issue_node.jump_predicted = instruction.jump_predicted;
+                lsb_issue_node.op_code = instruction.op_code_;
+                lsb_issue_node.op_type = instruction.op_name_;
+                lsb_issue_node.imm = instruction.imm_num_;
+                lsb_issue_node.used = true;
                 if (register_down[instruction.rs1_].rename == -1)
-                    lsb_next_node.vj = register_down[instruction.rs1_].value;
+                    lsb_issue_node.vj = register_down[instruction.rs1_].value;
                 else {
                     ROB_Node temp = rob_down.Get(register_down[instruction.rs1_].rename);
                     if (temp.ready)
-                        lsb_next_node.vj = temp.value;
+                        lsb_issue_node.vj = temp.value;
                     else
-                        lsb_next_node.qj = register_down[instruction.rs1_].rename;
+                        lsb_issue_node.qj = register_down[instruction.rs1_].rename;
                 }
-                lsb_next_node.reorder_num = rob_pos;
+                lsb_issue_node.reorder_num = rob_pos;
                 rename_info.rd = instruction.rd_;
                 rename_info.value = rob_pos;
             }
@@ -453,57 +453,57 @@ private:
             if (rob_down.Full())
                 return;
             unsigned int rob_pos = rob_down.Spare();
-            rob_next_node.op_code = instruction.op_code_;
-            rob_next_node.op_type = instruction.op_name_;
-            rob_next_node.rd = instruction.rd_;
-            rob_next_node.imm = instruction.imm_num_;
-            rob_next_node.pc = iq.Front().pc_position;
-            rob_next_node.ready = false;
-            rob_next_node.jump_predicted = instruction.jump_predicted;
-            lsb_next_node.op_code = instruction.op_code_;
-            lsb_next_node.op_type = instruction.op_name_;
-            lsb_next_node.imm = instruction.imm_num_;
-            lsb_next_node.used = true;
-            lsb_next_node.qj = instruction.rs1_;
-            lsb_next_node.qk = instruction.rs2_;
-            lsb_next_node.reorder_num = rob_pos;
+            rob_issue_node.op_code = instruction.op_code_;
+            rob_issue_node.op_type = instruction.op_name_;
+            rob_issue_node.rd = instruction.rd_;
+            rob_issue_node.imm = instruction.imm_num_;
+            rob_issue_node.pc = iq.Front().pc_position;
+            rob_issue_node.ready = false;
+            rob_issue_node.jump_predicted = instruction.jump_predicted;
+            lsb_issue_node.op_code = instruction.op_code_;
+            lsb_issue_node.op_type = instruction.op_name_;
+            lsb_issue_node.imm = instruction.imm_num_;
+            lsb_issue_node.used = true;
+            lsb_issue_node.qj = instruction.rs1_;
+            lsb_issue_node.qk = instruction.rs2_;
+            lsb_issue_node.reorder_num = rob_pos;
         } else if (instruction.op_code_ == 51) {
             if (instruction.rd_ != 0) {
                 if (rs_down.Full())
                     return;
                 unsigned int rob_pos = rob_down.Spare();
-                rob_next_node.op_code = instruction.op_code_;
-                rob_next_node.op_type = instruction.op_name_;
-                rob_next_node.rd = instruction.rd_;
-                rob_next_node.imm = instruction.imm_num_;
-                rob_next_node.pc = iq.Front().pc_position;
-                rob_next_node.ready = false;
-                rob_next_node.jump_predicted = instruction.jump_predicted;
-                rs_next_node.jump_predicted = instruction.jump_predicted;
-                rs_next_node.pc = instruction.pc;
-                rs_next_node.op_code = instruction.op_code_;
-                rs_next_node.op_type = instruction.op_name_;
-                rs_next_node.imm = instruction.imm_num_;
-                rs_next_node.used = true;
-                rs_next_node.reorder_num = rob_pos;
-                rs_next_node.pc = iq.Front().pc_position;
+                rob_issue_node.op_code = instruction.op_code_;
+                rob_issue_node.op_type = instruction.op_name_;
+                rob_issue_node.rd = instruction.rd_;
+                rob_issue_node.imm = instruction.imm_num_;
+                rob_issue_node.pc = iq.Front().pc_position;
+                rob_issue_node.ready = false;
+                rob_issue_node.jump_predicted = instruction.jump_predicted;
+                rs_issue_node.jump_predicted = instruction.jump_predicted;
+                rs_issue_node.pc = instruction.pc;
+                rs_issue_node.op_code = instruction.op_code_;
+                rs_issue_node.op_type = instruction.op_name_;
+                rs_issue_node.imm = instruction.imm_num_;
+                rs_issue_node.used = true;
+                rs_issue_node.reorder_num = rob_pos;
+                rs_issue_node.pc = iq.Front().pc_position;
                 if (register_down[instruction.rs1_].rename == -1) {
-                    rs_next_node.vj = register_down[instruction.rs1_].value;
+                    rs_issue_node.vj = register_down[instruction.rs1_].value;
                 } else {
                     ROB_Node temp = rob_down.Get(register_down[instruction.rs1_].rename);
                     if (temp.ready)
-                        rs_next_node.vj = temp.value;
+                        rs_issue_node.vj = temp.value;
                     else
-                        rs_next_node.qj = register_down[instruction.rs1_].rename;
+                        rs_issue_node.qj = register_down[instruction.rs1_].rename;
                 }
                 if (register_down[instruction.rs2_].rename == -1) {
-                    rs_next_node.vk = register_down[instruction.rs2_].value;
+                    rs_issue_node.vk = register_down[instruction.rs2_].value;
                 } else {
                     ROB_Node temp = rob_down.Get(register_down[instruction.rs2_].rename);
                     if (temp.ready)
-                        rs_next_node.vk = temp.value;
+                        rs_issue_node.vk = temp.value;
                     else
-                        rs_next_node.qk = register_down[instruction.rs2_].rename;
+                        rs_issue_node.qk = register_down[instruction.rs2_].rename;
                 }
                 rename_info.rd = instruction.rd_;
                 rename_info.value = rob_pos;
@@ -512,38 +512,38 @@ private:
             if (rs_down.Full())
                 return;
             unsigned int rob_pos = rob_down.Spare();
-            rob_next_node.op_code = instruction.op_code_;
-            rob_next_node.op_type = instruction.op_name_;
-            rob_next_node.rd = instruction.rd_;
-            rob_next_node.imm = instruction.imm_num_;
-            rob_next_node.pc = iq.Front().pc_position;
-            rob_next_node.ready = false;
-            rob_next_node.jump_predicted = instruction.jump_predicted;
-            rs_next_node.jump_predicted = instruction.jump_predicted;
-            rs_next_node.pc = instruction.pc;
-            rs_next_node.op_code = instruction.op_code_;
-            rs_next_node.op_type = instruction.op_name_;
-            rs_next_node.imm = instruction.imm_num_;
-            rs_next_node.used = true;
-            rs_next_node.reorder_num = rob_pos;
-            rs_next_node.pc = iq.Front().pc_position;
+            rob_issue_node.op_code = instruction.op_code_;
+            rob_issue_node.op_type = instruction.op_name_;
+            rob_issue_node.rd = instruction.rd_;
+            rob_issue_node.imm = instruction.imm_num_;
+            rob_issue_node.pc = iq.Front().pc_position;
+            rob_issue_node.ready = false;
+            rob_issue_node.jump_predicted = instruction.jump_predicted;
+            rs_issue_node.jump_predicted = instruction.jump_predicted;
+            rs_issue_node.pc = instruction.pc;
+            rs_issue_node.op_code = instruction.op_code_;
+            rs_issue_node.op_type = instruction.op_name_;
+            rs_issue_node.imm = instruction.imm_num_;
+            rs_issue_node.used = true;
+            rs_issue_node.reorder_num = rob_pos;
+            rs_issue_node.pc = iq.Front().pc_position;
             if (register_down[instruction.rs1_].rename == -1) {
-                rs_next_node.vj = register_down[instruction.rs1_].value;
+                rs_issue_node.vj = register_down[instruction.rs1_].value;
             } else {
                 ROB_Node temp = rob_down.Get(register_down[instruction.rs1_].rename);
                 if (temp.ready)
-                    rs_next_node.vj = temp.value;
+                    rs_issue_node.vj = temp.value;
                 else
-                    rs_next_node.qj = register_down[instruction.rs1_].rename;
+                    rs_issue_node.qj = register_down[instruction.rs1_].rename;
             }
             if (register_down[instruction.rs2_].rename == -1) {
-                rs_next_node.vk = register_down[instruction.rs2_].value;
+                rs_issue_node.vk = register_down[instruction.rs2_].value;
             } else {
                 ROB_Node temp = rob_down.Get(register_down[instruction.rs2_].rename);
                 if (temp.ready)
-                    rs_next_node.vk = temp.value;
+                    rs_issue_node.vk = temp.value;
                 else
-                    rs_next_node.qk = register_down[instruction.rs2_].rename;
+                    rs_issue_node.qk = register_down[instruction.rs2_].rename;
             }
         } else if (instruction.op_code_ == 19) {
             if (instruction.rd_ != 0) {
@@ -551,58 +551,58 @@ private:
                     return;
                 if (instruction.op_name_ == SLLI || instruction.op_name_ == SRLI || instruction.op_name_ == SRAI) {
                     unsigned int rob_pos = rob_down.Spare();
-                    rob_next_node.op_code = instruction.op_code_;
-                    rob_next_node.op_type = instruction.op_name_;
-                    rob_next_node.rd = instruction.rd_;
-                    rob_next_node.imm = instruction.imm_num_;
-                    rob_next_node.pc = iq.Front().pc_position;
-                    rob_next_node.ready = false;
-                    rob_next_node.jump_predicted = instruction.jump_predicted;
-                    rs_next_node.jump_predicted = instruction.jump_predicted;
-                    rs_next_node.pc = instruction.pc;
-                    rs_next_node.op_code = instruction.op_code_;
-                    rs_next_node.op_type = instruction.op_name_;
-                    rs_next_node.imm = instruction.imm_num_;
-                    rs_next_node.reorder_num = rob_pos;
-                    rs_next_node.pc = iq.Front().pc_position;
-                    rs_next_node.used = true;
+                    rob_issue_node.op_code = instruction.op_code_;
+                    rob_issue_node.op_type = instruction.op_name_;
+                    rob_issue_node.rd = instruction.rd_;
+                    rob_issue_node.imm = instruction.imm_num_;
+                    rob_issue_node.pc = iq.Front().pc_position;
+                    rob_issue_node.ready = false;
+                    rob_issue_node.jump_predicted = instruction.jump_predicted;
+                    rs_issue_node.jump_predicted = instruction.jump_predicted;
+                    rs_issue_node.pc = instruction.pc;
+                    rs_issue_node.op_code = instruction.op_code_;
+                    rs_issue_node.op_type = instruction.op_name_;
+                    rs_issue_node.imm = instruction.imm_num_;
+                    rs_issue_node.reorder_num = rob_pos;
+                    rs_issue_node.pc = iq.Front().pc_position;
+                    rs_issue_node.used = true;
                     if (register_down[instruction.rs1_].rename == -1) {
-                        rs_next_node.vj = register_down[instruction.rs1_].value;
+                        rs_issue_node.vj = register_down[instruction.rs1_].value;
                     } else {
                         ROB_Node temp = rob_down.Get(register_down[instruction.rs1_].rename);
                         if (temp.ready)
-                            rs_next_node.vj = temp.value;
+                            rs_issue_node.vj = temp.value;
                         else
-                            rs_next_node.qj = register_down[instruction.rs1_].rename;
+                            rs_issue_node.qj = register_down[instruction.rs1_].rename;
                     }
                     rename_info.rd = instruction.rd_;
                     rename_info.value = rob_pos;
                 } else {
                     unsigned int rob_pos = rob_down.Spare();
-                    rob_next_node.op_code = instruction.op_code_;
-                    rob_next_node.op_type = instruction.op_name_;
-                    rob_next_node.rd = instruction.rd_;
-                    rob_next_node.imm = instruction.imm_num_;
-                    rob_next_node.pc = iq.Front().pc_position;
-                    rob_next_node.ready = false;
-                    rob_next_node.is_end = is_end;
-                    rob_next_node.jump_predicted = instruction.jump_predicted;
-                    rs_next_node.jump_predicted = instruction.jump_predicted;
-                    rs_next_node.pc = instruction.pc;
-                    rs_next_node.op_code = instruction.op_code_;
-                    rs_next_node.op_type = instruction.op_name_;
-                    rs_next_node.imm = instruction.imm_num_;
-                    rs_next_node.used = true;
-                    rs_next_node.reorder_num = rob_pos;
-                    rs_next_node.pc = iq.Front().pc_position;
+                    rob_issue_node.op_code = instruction.op_code_;
+                    rob_issue_node.op_type = instruction.op_name_;
+                    rob_issue_node.rd = instruction.rd_;
+                    rob_issue_node.imm = instruction.imm_num_;
+                    rob_issue_node.pc = iq.Front().pc_position;
+                    rob_issue_node.ready = false;
+                    rob_issue_node.is_end = is_end;
+                    rob_issue_node.jump_predicted = instruction.jump_predicted;
+                    rs_issue_node.jump_predicted = instruction.jump_predicted;
+                    rs_issue_node.pc = instruction.pc;
+                    rs_issue_node.op_code = instruction.op_code_;
+                    rs_issue_node.op_type = instruction.op_name_;
+                    rs_issue_node.imm = instruction.imm_num_;
+                    rs_issue_node.used = true;
+                    rs_issue_node.reorder_num = rob_pos;
+                    rs_issue_node.pc = iq.Front().pc_position;
                     if (register_down[instruction.rs1_].rename == -1) {
-                        rs_next_node.vj = register_down[instruction.rs1_].value;
+                        rs_issue_node.vj = register_down[instruction.rs1_].value;
                     } else {
                         ROB_Node temp = rob_down.Get(register_down[instruction.rs1_].rename);
                         if (temp.ready)
-                            rs_next_node.vj = temp.value;
+                            rs_issue_node.vj = temp.value;
                         else
-                            rs_next_node.qj = register_down[instruction.rs1_].rename;
+                            rs_issue_node.qj = register_down[instruction.rs1_].rename;
                     }
                     rename_info.rd = instruction.rd_;
                     rename_info.value = rob_pos;
@@ -612,29 +612,29 @@ private:
             if (rs_down.Full())
                 return;
             unsigned int rob_pos = rob_down.Spare();
-            rob_next_node.op_code = instruction.op_code_;
-            rob_next_node.op_type = instruction.op_name_;
-            rob_next_node.imm = instruction.imm_num_;
+            rob_issue_node.op_code = instruction.op_code_;
+            rob_issue_node.op_type = instruction.op_name_;
+            rob_issue_node.imm = instruction.imm_num_;
             if (instruction.rd_ != 0) // 忽略指向0号寄存器的指令
-                rob_next_node.rd = instruction.rd_;
-            rob_next_node.pc = iq.Front().pc_position;
-            rob_next_node.jump_predicted = instruction.jump_predicted;
-            rs_next_node.jump_predicted = instruction.jump_predicted;
-            rs_next_node.pc = instruction.pc;
-            rs_next_node.op_code = instruction.op_code_;
-            rs_next_node.op_type = instruction.op_name_;
-            rs_next_node.imm = instruction.imm_num_;
-            rs_next_node.used = true;
-            rs_next_node.reorder_num = rob_pos;
-            rs_next_node.pc = iq.Front().pc_position;
+                rob_issue_node.rd = instruction.rd_;
+            rob_issue_node.pc = iq.Front().pc_position;
+            rob_issue_node.jump_predicted = instruction.jump_predicted;
+            rs_issue_node.jump_predicted = instruction.jump_predicted;
+            rs_issue_node.pc = instruction.pc;
+            rs_issue_node.op_code = instruction.op_code_;
+            rs_issue_node.op_type = instruction.op_name_;
+            rs_issue_node.imm = instruction.imm_num_;
+            rs_issue_node.used = true;
+            rs_issue_node.reorder_num = rob_pos;
+            rs_issue_node.pc = iq.Front().pc_position;
             if (register_down[instruction.rs1_].rename == -1) {
-                rs_next_node.vj = register_down[instruction.rs1_].value;
+                rs_issue_node.vj = register_down[instruction.rs1_].value;
             } else {
                 ROB_Node temp = rob_down.Get(register_down[instruction.rs1_].rename);
                 if (temp.ready)
-                    rs_next_node.vj = temp.value;
+                    rs_issue_node.vj = temp.value;
                 else
-                    rs_next_node.qj = register_down[instruction.rs1_].rename;
+                    rs_issue_node.qj = register_down[instruction.rs1_].rename;
             }
             if (instruction.rd_ != 0) {
                 rename_info.rd = instruction.rd_;
@@ -644,21 +644,21 @@ private:
             if (rs_down.Full())
                 return;
             unsigned int rob_pos = rob_down.Spare();
-            rob_next_node.op_code = instruction.op_code_;
-            rob_next_node.op_type = instruction.op_name_;
-            rob_next_node.imm = instruction.imm_num_;
+            rob_issue_node.op_code = instruction.op_code_;
+            rob_issue_node.op_type = instruction.op_name_;
+            rob_issue_node.imm = instruction.imm_num_;
             if (instruction.rd_ != 0)
-                rob_next_node.rd = instruction.rd_;
-            rob_next_node.pc = iq.Front().pc_position;
-            rob_next_node.jump_predicted = instruction.jump_predicted;
-            rs_next_node.jump_predicted = instruction.jump_predicted;
-            rs_next_node.pc = instruction.pc;
-            rs_next_node.op_code = instruction.op_code_;
-            rs_next_node.op_type = instruction.op_name_;
-            rs_next_node.imm = instruction.imm_num_;
-            rs_next_node.used = true;
-            rs_next_node.reorder_num = rob_pos;
-            rs_next_node.pc = iq.Front().pc_position;
+                rob_issue_node.rd = instruction.rd_;
+            rob_issue_node.pc = iq.Front().pc_position;
+            rob_issue_node.jump_predicted = instruction.jump_predicted;
+            rs_issue_node.jump_predicted = instruction.jump_predicted;
+            rs_issue_node.pc = instruction.pc;
+            rs_issue_node.op_code = instruction.op_code_;
+            rs_issue_node.op_type = instruction.op_name_;
+            rs_issue_node.imm = instruction.imm_num_;
+            rs_issue_node.used = true;
+            rs_issue_node.reorder_num = rob_pos;
+            rs_issue_node.pc = iq.Front().pc_position;
             if (instruction.rd_ != 0) {
                 rename_info.rd = instruction.rd_;
                 rename_info.value = rob_pos;
@@ -668,40 +668,40 @@ private:
                 if (rs_up.Full())
                     return;
                 unsigned int rob_pos = rob_down.Spare();
-                rob_next_node.op_code = instruction.op_code_;
-                rob_next_node.op_type = instruction.op_name_;
-                rob_next_node.imm = instruction.imm_num_;
-                rob_next_node.rd = instruction.rd_;
-                rob_next_node.pc = iq.Front().pc_position;
-                rob_next_node.jump_predicted = instruction.jump_predicted;
-                rs_next_node.jump_predicted = instruction.jump_predicted;
-                rs_next_node.pc = instruction.pc;
-                rs_next_node.op_code = instruction.op_code_;
-                rs_next_node.op_type = instruction.op_name_;
-                rs_next_node.imm = instruction.imm_num_;
-                rs_next_node.used = true;
-                rs_next_node.reorder_num = rob_pos;
-                rs_next_node.pc = iq.Front().pc_position;
+                rob_issue_node.op_code = instruction.op_code_;
+                rob_issue_node.op_type = instruction.op_name_;
+                rob_issue_node.imm = instruction.imm_num_;
+                rob_issue_node.rd = instruction.rd_;
+                rob_issue_node.pc = iq.Front().pc_position;
+                rob_issue_node.jump_predicted = instruction.jump_predicted;
+                rs_issue_node.jump_predicted = instruction.jump_predicted;
+                rs_issue_node.pc = instruction.pc;
+                rs_issue_node.op_code = instruction.op_code_;
+                rs_issue_node.op_type = instruction.op_name_;
+                rs_issue_node.imm = instruction.imm_num_;
+                rs_issue_node.used = true;
+                rs_issue_node.reorder_num = rob_pos;
+                rs_issue_node.pc = iq.Front().pc_position;
                 rename_info.rd = instruction.rd_;
                 rename_info.value = rob_pos;
             }
         } else if (instruction.op_code_ == 55) {
             if (instruction.rd_ != 0) {
                 unsigned int rob_pos = rob_down.Spare();
-                rob_next_node.op_code = instruction.op_code_;
-                rob_next_node.op_type = instruction.op_name_;
-                rob_next_node.imm = instruction.imm_num_;
-                rob_next_node.rd = instruction.rd_;
-                rob_next_node.pc = iq.Front().pc_position;
-                rob_next_node.jump_predicted = instruction.jump_predicted;
-                rs_next_node.jump_predicted = instruction.jump_predicted;
-                rs_next_node.pc = instruction.pc;
-                rs_next_node.op_code = instruction.op_code_;
-                rs_next_node.op_type = instruction.op_name_;
-                rs_next_node.imm = instruction.imm_num_;
-                rs_next_node.used = true;
-                rs_next_node.reorder_num = rob_pos;
-                rs_next_node.pc = iq.Front().pc_position;
+                rob_issue_node.op_code = instruction.op_code_;
+                rob_issue_node.op_type = instruction.op_name_;
+                rob_issue_node.imm = instruction.imm_num_;
+                rob_issue_node.rd = instruction.rd_;
+                rob_issue_node.pc = iq.Front().pc_position;
+                rob_issue_node.jump_predicted = instruction.jump_predicted;
+                rs_issue_node.jump_predicted = instruction.jump_predicted;
+                rs_issue_node.pc = instruction.pc;
+                rs_issue_node.op_code = instruction.op_code_;
+                rs_issue_node.op_type = instruction.op_name_;
+                rs_issue_node.imm = instruction.imm_num_;
+                rs_issue_node.used = true;
+                rs_issue_node.reorder_num = rob_pos;
+                rs_issue_node.pc = iq.Front().pc_position;
                 rename_info.rd = instruction.rd_;
                 rename_info.value = rob_pos;
             }
@@ -713,7 +713,7 @@ private:
         register_write.Clear();
         memory_write.Clear();
         jump_result = 0;
-        if (!commit_node.op_code) {
+        if (!commit_node.op_code) {// 若此时无指令commit
         } else if (commit_node.op_code == 35) {
             memory_write.reorder_num = commit_node.reorder_num;
             memory_write.value = commit_node.value;
