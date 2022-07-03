@@ -47,7 +47,7 @@ private:
     bool jumped = false;
 
     unsigned int MemoryRead(unsigned int object) {
-        return (unsigned int) Memory[memory_base + object];
+        return Memory[memory_base + object];
     }
 
     void MemoryWrite(unsigned int object, unsigned int value) {
@@ -96,7 +96,7 @@ private:
         } else if (jump_result == 1) {
             rob_up.PopHead();
         }
-        if (cdb_execute.reorder_num != (unsigned int) -1) {
+        if (cdb_execute.reorder_num != -1) {
             ROB_Node temp = rob_down.Get(cdb_execute.reorder_num);
             temp.value = cdb_execute.value;
             temp.jump_step = cdb_execute.jump_num;
@@ -109,7 +109,7 @@ private:
             rob_lsb_up.jump_predicted = cdb_execute.jump_predicted;
             rob_lsb_up.pc = cdb_execute.pc;
         }
-        if (cdb_lsb_down.reorder_num != (unsigned int) -1) {
+        if (cdb_lsb_down.reorder_num != -1) {
             ROB_Node temp = rob_down.Get(cdb_lsb_down.reorder_num);
             temp.value = cdb_lsb_down.value;
             temp.jump_predicted = cdb_lsb_down.jump_predicted;
@@ -129,7 +129,7 @@ private:
 
     void RunLSB() {
         cdb_lsb_up.Clear();
-        if (jump_result == (unsigned int) -1) {
+        if (jump_result == -1) {
             lsb_up.Clear();
             lsb_next_node.Clear();
             unsigned pos = lsb_down.Head();
@@ -145,7 +145,7 @@ private:
         } else {
             lsb_up = lsb_down;
         }
-        if (memory_write.reorder_num != (unsigned int) -1) {
+        if (memory_write.reorder_num != -1) {
             for (int i = 0; i < k_size; i++) {
                 LSB_Node check = lsb_up.Get(i);
                 if (check.reorder_num == memory_write.reorder_num) {
@@ -157,7 +157,7 @@ private:
                 }
             }
         }
-        if (rob_lsb_down.reorder_num != (unsigned int) -1) {
+        if (rob_lsb_down.reorder_num != -1) {
             for (int i = 0; i < k_size; i++) {
                 LSB_Node check = lsb_up.Get(i);
                 if (check.op_code == 3 && check.qj == rob_lsb_down.reorder_num) {
@@ -206,12 +206,12 @@ private:
 
     void RunRS() {
         rs_up = rs_down;
-        if (jump_result == (unsigned int) -1) {
+        if (jump_result == -1) {
             rs_up.Clear();
             rs_next_node.Clear();
             return;
         }
-        if (cdb_execute.reorder_num != (unsigned int) -1) {
+        if (cdb_execute.reorder_num != -1) {
             for (int i = 0; i < k_size; i++) {// 逐条检查有无计算出
                 RS_Node check = rs_up.Get(i);
                 if (check.used) {
@@ -237,7 +237,7 @@ private:
                 }
             }
         }
-        if (cdb_lsb_down.reorder_num != (unsigned int) -1) {
+        if (cdb_lsb_down.reorder_num != -1) {
             for (int i = 0; i < k_size; i++) {
                 RS_Node check = rs_up.Get(i);
                 if (check.used) {
@@ -286,21 +286,21 @@ private:
         for (int i = 0; i < k_size; i++) {
             register_up[i] = register_down[i];
         }
-        if (jump_result == (unsigned int) -1) { //清空
+        if (jump_result == -1) { //清空
             for (int i = 0; i < k_size; i++)
                 register_up[i].rename = -1;
-            if (register_write.rd != (unsigned int) -1) {
+            if (register_write.rd != -1) {
                 register_up[register_write.rd].value = register_write.value;
 //                committeed = true;
             }
         } else {
-            if (register_write.rd != (unsigned int) -1) {
+            if (register_write.rd != -1) {
                 register_up[register_write.rd].value = register_write.value;
                 if (register_up[register_write.rd].rename == register_write.reorder_num)
                     register_up[register_write.rd].rename = -1;
 //                committeed = true;
             }
-            if (rename_info.rd != (unsigned int) -1) {
+            if (rename_info.rd != -1) {
                 register_up[rename_info.rd].rename = rename_info.value;
 //                committeed = true;
             }
@@ -436,7 +436,7 @@ private:
                 lsb_next_node.op_type = instruction.op_name_;
                 lsb_next_node.imm = instruction.imm_num_;
                 lsb_next_node.used = true;
-                if (register_down[instruction.rs1_].rename == (unsigned int) -1)
+                if (register_down[instruction.rs1_].rename == -1)
                     lsb_next_node.vj = register_down[instruction.rs1_].value;
                 else {
                     ROB_Node temp = rob_down.Get(register_down[instruction.rs1_].rename);
@@ -487,7 +487,7 @@ private:
                 rs_next_node.used = true;
                 rs_next_node.reorder_num = rob_pos;
                 rs_next_node.pc = iq.Front().pc_position;
-                if (register_down[instruction.rs1_].rename == (unsigned int) -1) {
+                if (register_down[instruction.rs1_].rename == -1) {
                     rs_next_node.vj = register_down[instruction.rs1_].value;
                 } else {
                     ROB_Node temp = rob_down.Get(register_down[instruction.rs1_].rename);
@@ -496,7 +496,7 @@ private:
                     else
                         rs_next_node.qj = register_down[instruction.rs1_].rename;
                 }
-                if (register_down[instruction.rs2_].rename == (unsigned int) -1) {
+                if (register_down[instruction.rs2_].rename == -1) {
                     rs_next_node.vk = register_down[instruction.rs2_].value;
                 } else {
                     ROB_Node temp = rob_down.Get(register_down[instruction.rs2_].rename);
@@ -527,7 +527,7 @@ private:
             rs_next_node.used = true;
             rs_next_node.reorder_num = rob_pos;
             rs_next_node.pc = iq.Front().pc_position;
-            if (register_down[instruction.rs1_].rename == (unsigned int) -1) {
+            if (register_down[instruction.rs1_].rename == -1) {
                 rs_next_node.vj = register_down[instruction.rs1_].value;
             } else {
                 ROB_Node temp = rob_down.Get(register_down[instruction.rs1_].rename);
@@ -536,7 +536,7 @@ private:
                 else
                     rs_next_node.qj = register_down[instruction.rs1_].rename;
             }
-            if (register_down[instruction.rs2_].rename == (unsigned int) -1) {
+            if (register_down[instruction.rs2_].rename == -1) {
                 rs_next_node.vk = register_down[instruction.rs2_].value;
             } else {
                 ROB_Node temp = rob_down.Get(register_down[instruction.rs2_].rename);
@@ -566,7 +566,7 @@ private:
                     rs_next_node.reorder_num = rob_pos;
                     rs_next_node.pc = iq.Front().pc_position;
                     rs_next_node.used = true;
-                    if (register_down[instruction.rs1_].rename == (unsigned int) -1) {
+                    if (register_down[instruction.rs1_].rename == -1) {
                         rs_next_node.vj = register_down[instruction.rs1_].value;
                     } else {
                         ROB_Node temp = rob_down.Get(register_down[instruction.rs1_].rename);
@@ -595,7 +595,7 @@ private:
                     rs_next_node.used = true;
                     rs_next_node.reorder_num = rob_pos;
                     rs_next_node.pc = iq.Front().pc_position;
-                    if (register_down[instruction.rs1_].rename == (unsigned int) -1) {
+                    if (register_down[instruction.rs1_].rename == -1) {
                         rs_next_node.vj = register_down[instruction.rs1_].value;
                     } else {
                         ROB_Node temp = rob_down.Get(register_down[instruction.rs1_].rename);
@@ -627,7 +627,7 @@ private:
             rs_next_node.used = true;
             rs_next_node.reorder_num = rob_pos;
             rs_next_node.pc = iq.Front().pc_position;
-            if (register_down[instruction.rs1_].rename == (unsigned int) -1) {
+            if (register_down[instruction.rs1_].rename == -1) {
                 rs_next_node.vj = register_down[instruction.rs1_].value;
             } else {
                 ROB_Node temp = rob_down.Get(register_down[instruction.rs1_].rename);
@@ -719,7 +719,7 @@ private:
             memory_write.value = commit_node.value;
             jump_result = 1;
         } else if (commit_node.op_code == 99) {
-            if (commit_node.jump_step != (unsigned int) -1) {
+            if (commit_node.jump_step != -1) {
                 PC = commit_node.jump_step;
                 jump_result = -1;
 //                if (commit_node.jump_predicted)
@@ -766,7 +766,7 @@ private:
     }
 
     void RunIQ() {
-        if (jump_result != (unsigned int) -1 && iq_pointer != (unsigned int) -1) {
+        if (jump_result != -1 && iq_pointer != -1) {
             // 上升沿
             IQ_Node temp;
             temp.pc_position = iq_pointer;
